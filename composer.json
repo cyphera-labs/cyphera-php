@@ -1,0 +1,40 @@
+{
+    "name": "cyphera/cyphera",
+    "description": "Data protection SDK for PHP — format-preserving encryption (FF1/FF3), data masking, and hashing.",
+    "type": "library",
+    "license": "Apache-2.0",
+    "require": {
+        "php": ">=8.1",
+        "ext-openssl": "*",
+        "ext-gmp": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cyphera\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Cyphera\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Horizon Digital Engineering",
+            "email": "leslie.gutschow@horizondigital.dev"
+        }
+    ],
+    "homepage": "https://cyphera.io",
+    "keywords": [
+        "encryption",
+        "fpe",
+        "format-preserving-encryption",
+        "data-protection",
+        "masking",
+        "ff1",
+        "ff3"
+    ]
+}
