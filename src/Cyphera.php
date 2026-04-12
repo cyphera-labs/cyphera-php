@@ -28,8 +28,15 @@ class Cyphera
     {
         // Load keys
         foreach (($config['keys'] ?? []) as $name => $val) {
-            $material = is_string($val) ? $val : ($val['material'] ?? '');
-            $this->keys[$name] = hex2bin($material);
+            if (is_string($val)) {
+                $this->keys[$name] = hex2bin($val);
+            } elseif (isset($val['material'])) {
+                $this->keys[$name] = hex2bin($val['material']);
+            } elseif (isset($val['source'])) {
+                $this->keys[$name] = self::resolveKeySource($name, $val);
+            } else {
+                throw new \InvalidArgumentException("Key '{$name}' must have either 'material' or 'source'");
+            }
         }
 
         // Load policies + build tag index
@@ -239,6 +246,44 @@ class Cyphera
             throw new \InvalidArgumentException("Unknown key: {$keyRef}");
         }
         return $this->keys[$keyRef];
+    }
+
+    private const CLOUD_SOURCES = ['aws-kms', 'gcp-kms', 'azure-kv', 'vault'];
+
+    private static function resolveKeySource(string $name, array $config): string
+    {
+        $source = $config['source'];
+
+        if ($source === 'env') {
+            $var = $config['var'] ?? null;
+            if (!$var) throw new \InvalidArgumentException("Key '{$name}': source 'env' requires 'var' field");
+            $val = getenv($var);
+            if ($val === false || $val === '') throw new \InvalidArgumentException("Key '{$name}': environment variable '{$var}' is not set");
+            $encoding = $config['encoding'] ?? 'hex';
+            if ($encoding === 'base64') return base64_decode($val, true);
+            return hex2bin($val);
+        }
+
+        if ($source === 'file') {
+            $path = $config['path'] ?? null;
+            if (!$path) throw new \InvalidArgumentException("Key '{$name}': source 'file' requires 'path' field");
+            $raw = trim(file_get_contents($path));
+            $encoding = $config['encoding'] ?? (str_ends_with($path, '.b64') || str_ends_with($path, '.base64') ? 'base64' : 'hex');
+            if ($encoding === 'base64') return base64_decode($raw, true);
+            return hex2bin($raw);
+        }
+
+        if (in_array($source, self::CLOUD_SOURCES, true)) {
+            if (!class_exists('Cyphera\\Keychain\\KeychainResolver')) {
+                throw new \RuntimeException(
+                    "Key '{$name}' requires source '{$source}' but cyphera-keychain is not installed.\n" .
+                    "Install it: composer require cyphera/cyphera-keychain"
+                );
+            }
+            return \Cyphera\Keychain\KeychainResolver::resolve($source, $config);
+        }
+
+        throw new \InvalidArgumentException("Key '{$name}': unknown source '{$source}'. Valid: env, file, " . implode(', ', self::CLOUD_SOURCES));
     }
 
     private static function resolveAlphabet(?string $name): string
