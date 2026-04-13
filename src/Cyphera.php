@@ -116,7 +116,7 @@ class Cyphera
     {
         if ($policyName !== null) {
             $policy = $this->getPolicy($policyName);
-            return $this->accessFpe($protectedValue, $policy);
+            return $this->accessFpe($protectedValue, $policy, true);
         }
 
         // Tag-based lookup — longest tags first
@@ -161,7 +161,7 @@ class Cyphera
         return $result;
     }
 
-    private function accessFpe(string $protectedValue, array $policy): string
+    private function accessFpe(string $protectedValue, array $policy, bool $explicitPolicy = false): string
     {
         if (!in_array($policy['engine'], ['ff1', 'ff3'], true)) {
             throw new \InvalidArgumentException("Cannot reverse '{$policy['engine']}' — not reversible");
@@ -171,7 +171,7 @@ class Cyphera
         $alphabet = $policy['alphabet'];
 
         $withoutTag = $protectedValue;
-        if ($policy['tag_enabled'] && $policy['tag'] !== null) {
+        if (!$explicitPolicy && $policy['tag_enabled'] && $policy['tag'] !== null) {
             $withoutTag = substr($protectedValue, strlen($policy['tag']));
         }
 
