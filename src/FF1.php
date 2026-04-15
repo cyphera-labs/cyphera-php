@@ -72,6 +72,8 @@ class FF1
 
     private function aesEcb(string $block): string
     {
+        // NIST SP 800-38G requires AES-ECB as the PRF for FF1/FF3 Feistel rounds.
+        // This is single-block encryption used as a building block, not ECB mode applied to user data.
         $algo = match (strlen($this->key)) {
             16 => 'aes-128-ecb',
             24 => 'aes-192-ecb',
