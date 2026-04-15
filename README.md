@@ -1,6 +1,7 @@
 # cyphera
 
 [![CI](https://github.com/cyphera-labs/cyphera-php/actions/workflows/ci.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-php/actions/workflows/ci.yml)
+[![Security](https://github.com/cyphera-labs/cyphera-php/actions/workflows/codeql.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-php/actions/workflows/codeql.yml)
 [![Packagist](https://img.shields.io/packagist/v/cyphera/cyphera)](https://packagist.org/packages/cyphera/cyphera)
 [![PHP](https://img.shields.io/badge/php-8.1%2B-purple)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
