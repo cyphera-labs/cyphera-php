@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Cyphera;
 
 /**
- * Cyphera SDK — policy-driven protect/access API.
+ * Cyphera SDK — configuration-driven protect/access API.
  */
 class Cyphera
 {
@@ -18,9 +18,9 @@ class Cyphera
     ];
 
     /** @var array<string, array<string, mixed>> */
-    private array $policies = [];
-    /** @var array<string, string> tag -> policy name */
-    private array $tagIndex = [];
+    private array $configurations = [];
+    /** @var array<string, string> header -> configuration name */
+    private array $headerIndex = [];
     /** @var array<string, string> name -> key bytes */
     private array $keys = [];
 
@@ -39,37 +39,37 @@ class Cyphera
             }
         }
 
-        // Load policies + build tag index
-        foreach (($config['policies'] ?? []) as $name => $pol) {
-            $tagEnabled = ($pol['tag_enabled'] ?? true) !== false;
-            $tag = $pol['tag'] ?? null;
+        // Load configurations + build header index
+        foreach (($config['configurations'] ?? []) as $name => $cfg) {
+            $headerEnabled = ($cfg['header_enabled'] ?? true) !== false;
+            $header = $cfg['header'] ?? null;
 
-            if ($tagEnabled && empty($tag)) {
-                throw new \InvalidArgumentException("Policy '{$name}' has tag_enabled=true but no tag specified");
+            if ($headerEnabled && empty($header)) {
+                throw new \InvalidArgumentException("Configuration '{$name}' has header_enabled=true but no header specified");
             }
 
-            if ($tagEnabled && $tag !== null) {
-                if (isset($this->tagIndex[$tag])) {
-                    throw new \InvalidArgumentException("Tag collision: '{$tag}' used by both '{$this->tagIndex[$tag]}' and '{$name}'");
+            if ($headerEnabled && $header !== null) {
+                if (isset($this->headerIndex[$header])) {
+                    throw new \InvalidArgumentException("Header collision: '{$header}' used by both '{$this->headerIndex[$header]}' and '{$name}'");
                 }
-                $this->tagIndex[$tag] = $name;
+                $this->headerIndex[$header] = $name;
             }
 
-            $this->policies[$name] = [
-                'engine' => $pol['engine'] ?? 'ff1',
-                'alphabet' => self::resolveAlphabet($pol['alphabet'] ?? null),
-                'key_ref' => $pol['key_ref'] ?? null,
-                'tag' => $tag,
-                'tag_enabled' => $tagEnabled,
-                'pattern' => $pol['pattern'] ?? null,
-                'algorithm' => $pol['algorithm'] ?? 'sha256',
+            $this->configurations[$name] = [
+                'engine' => $cfg['engine'] ?? 'ff1',
+                'alphabet' => self::resolveAlphabet($cfg['alphabet'] ?? null),
+                'key_ref' => $cfg['key_ref'] ?? null,
+                'header' => $header,
+                'header_enabled' => $headerEnabled,
+                'pattern' => $cfg['pattern'] ?? null,
+                'algorithm' => $cfg['algorithm'] ?? 'sha256',
             ];
         }
     }
 
     public static function load(): self
     {
-        $envPath = getenv('CYPHERA_POLICY_FILE');
+        $envPath = getenv('CYPHERA_CONFIG_FILE');
         if ($envPath && file_exists($envPath)) {
             return self::fromFile($envPath);
         }
@@ -80,7 +80,7 @@ class Cyphera
             return self::fromFile('/etc/cyphera/cyphera.json');
         }
         throw new \RuntimeException(
-            'No policy file found. Checked: CYPHERA_POLICY_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json'
+            'No configuration file found. Checked: CYPHERA_CONFIG_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json'
         );
     }
 
@@ -88,7 +88,7 @@ class Cyphera
     {
         $json = file_get_contents($path);
         if ($json === false) {
-            throw new \RuntimeException("Failed to read policy file: {$path}");
+            throw new \RuntimeException("Failed to read configuration file: {$path}");
         }
         $config = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         return new self($config);
@@ -99,46 +99,46 @@ class Cyphera
         return new self($config);
     }
 
-    public function protect(string $value, string $policyName): string
+    public function protect(string $value, string $configurationName): string
     {
-        $policy = $this->getPolicy($policyName);
+        $configuration = $this->getConfiguration($configurationName);
 
-        return match ($policy['engine']) {
-            'ff1' => $this->protectFpe($value, $policy, false),
-            'ff3' => $this->protectFpe($value, $policy, true),
-            'mask' => $this->protectMask($value, $policy),
-            'hash' => $this->protectHash($value, $policy),
-            default => throw new \InvalidArgumentException("Unknown engine: {$policy['engine']}"),
+        return match ($configuration['engine']) {
+            'ff1' => $this->protectFpe($value, $configuration, false),
+            'ff3' => $this->protectFpe($value, $configuration, true),
+            'mask' => $this->protectMask($value, $configuration),
+            'hash' => $this->protectHash($value, $configuration),
+            default => throw new \InvalidArgumentException("Unknown engine: {$configuration['engine']}"),
         };
     }
 
-    public function access(string $protectedValue, ?string $policyName = null): string
+    public function access(string $protectedValue, ?string $configurationName = null): string
     {
-        if ($policyName !== null) {
-            $policy = $this->getPolicy($policyName);
-            return $this->accessFpe($protectedValue, $policy, true);
+        if ($configurationName !== null) {
+            $configuration = $this->getConfiguration($configurationName);
+            return $this->accessFpe($protectedValue, $configuration, true);
         }
 
-        // Tag-based lookup — longest tags first
-        $tags = array_keys($this->tagIndex);
-        usort($tags, fn($a, $b) => strlen($b) - strlen($a));
+        // Header-based lookup — longest headers first
+        $headers = array_keys($this->headerIndex);
+        usort($headers, fn($a, $b) => strlen($b) - strlen($a));
 
-        foreach ($tags as $tag) {
-            if (strlen($protectedValue) > strlen($tag) && str_starts_with($protectedValue, $tag)) {
-                $policy = $this->getPolicy($this->tagIndex[$tag]);
-                return $this->accessFpe($protectedValue, $policy);
+        foreach ($headers as $header) {
+            if (strlen($protectedValue) > strlen($header) && str_starts_with($protectedValue, $header)) {
+                $configuration = $this->getConfiguration($this->headerIndex[$header]);
+                return $this->accessFpe($protectedValue, $configuration);
             }
         }
 
-        throw new \InvalidArgumentException('No matching tag found. Use access($value, $policyName) for untagged values.');
+        throw new \InvalidArgumentException('No matching header found. Use access($value, $configurationName) for values without a header.');
     }
 
     // ── FPE ──
 
-    private function protectFpe(string $value, array $policy, bool $isFF3): string
+    private function protectFpe(string $value, array $configuration, bool $isFF3): string
     {
-        $key = $this->resolveKey($policy['key_ref']);
-        $alphabet = $policy['alphabet'];
+        $key = $this->resolveKey($configuration['key_ref']);
+        $alphabet = $configuration['alphabet'];
 
         [$encryptable, $positions, $chars] = $this->extractPassthroughs($value, $alphabet);
 
@@ -155,29 +155,29 @@ class Cyphera
 
         $result = $this->reinsertPassthroughs($encrypted, $positions, $chars);
 
-        if ($policy['tag_enabled'] && $policy['tag'] !== null) {
-            return $policy['tag'] . $result;
+        if ($configuration['header_enabled'] && $configuration['header'] !== null) {
+            return $configuration['header'] . $result;
         }
         return $result;
     }
 
-    private function accessFpe(string $protectedValue, array $policy, bool $explicitPolicy = false): string
+    private function accessFpe(string $protectedValue, array $configuration, bool $explicitConfiguration = false): string
     {
-        if (!in_array($policy['engine'], ['ff1', 'ff3'], true)) {
-            throw new \InvalidArgumentException("Cannot reverse '{$policy['engine']}' — not reversible");
+        if (!in_array($configuration['engine'], ['ff1', 'ff3'], true)) {
+            throw new \InvalidArgumentException("Cannot reverse '{$configuration['engine']}' — not reversible");
         }
 
-        $key = $this->resolveKey($policy['key_ref']);
-        $alphabet = $policy['alphabet'];
+        $key = $this->resolveKey($configuration['key_ref']);
+        $alphabet = $configuration['alphabet'];
 
-        $withoutTag = $protectedValue;
-        if (!$explicitPolicy && $policy['tag_enabled'] && $policy['tag'] !== null) {
-            $withoutTag = substr($protectedValue, strlen($policy['tag']));
+        $withoutHeader = $protectedValue;
+        if (!$explicitConfiguration && $configuration['header_enabled'] && $configuration['header'] !== null) {
+            $withoutHeader = substr($protectedValue, strlen($configuration['header']));
         }
 
-        [$encryptable, $positions, $chars] = $this->extractPassthroughs($withoutTag, $alphabet);
+        [$encryptable, $positions, $chars] = $this->extractPassthroughs($withoutHeader, $alphabet);
 
-        if ($policy['engine'] === 'ff3') {
+        if ($configuration['engine'] === 'ff3') {
             $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);
         } else {
             $cipher = new FF1($key, '', $alphabet);
@@ -189,11 +189,11 @@ class Cyphera
 
     // ── Mask ──
 
-    private function protectMask(string $value, array $policy): string
+    private function protectMask(string $value, array $configuration): string
     {
-        $pattern = $policy['pattern'];
+        $pattern = $configuration['pattern'];
         if (empty($pattern)) {
-            throw new \InvalidArgumentException("Mask policy requires 'pattern'");
+            throw new \InvalidArgumentException("Mask configuration requires 'pattern'");
         }
 
         $len = mb_strlen($value);
@@ -208,19 +208,19 @@ class Cyphera
 
     // ── Hash ──
 
-    private function protectHash(string $value, array $policy): string
+    private function protectHash(string $value, array $configuration): string
     {
-        $algo = strtolower(str_replace('-', '', $policy['algorithm']));
+        $algo = strtolower(str_replace('-', '', $configuration['algorithm']));
         $algoMap = ['sha256' => 'sha256', 'sha384' => 'sha384', 'sha512' => 'sha512'];
         $hashAlgo = $algoMap[$algo] ?? null;
         if ($hashAlgo === null) {
-            throw new \InvalidArgumentException("Unsupported hash algorithm: {$policy['algorithm']}");
+            throw new \InvalidArgumentException("Unsupported hash algorithm: {$configuration['algorithm']}");
         }
 
         $data = $value;
 
-        if (!empty($policy['key_ref'])) {
-            $key = $this->resolveKey($policy['key_ref']);
+        if (!empty($configuration['key_ref'])) {
+            $key = $this->resolveKey($configuration['key_ref']);
             return hash_hmac($hashAlgo, $data, $key);
         }
 
@@ -229,18 +229,18 @@ class Cyphera
 
     // ── Helpers ──
 
-    private function getPolicy(string $name): array
+    private function getConfiguration(string $name): array
     {
-        if (!isset($this->policies[$name])) {
-            throw new \InvalidArgumentException("Unknown policy: {$name}");
+        if (!isset($this->configurations[$name])) {
+            throw new \InvalidArgumentException("Unknown configuration: {$name}");
         }
-        return $this->policies[$name];
+        return $this->configurations[$name];
     }
 
     private function resolveKey(?string $keyRef): string
     {
         if (empty($keyRef)) {
-            throw new \InvalidArgumentException('No key_ref in policy');
+            throw new \InvalidArgumentException('No key_ref in configuration');
         }
         if (!isset($this->keys[$keyRef])) {
             throw new \InvalidArgumentException("Unknown key: {$keyRef}");

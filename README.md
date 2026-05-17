@@ -6,7 +6,7 @@
 [![PHP](https://img.shields.io/badge/php-8.1%2B-purple)](https://www.php.net/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-Data protection SDK for PHP — format-preserving encryption (FF1/FF3), data masking, and hashing.
+Configuration-driven data protection SDK for PHP — format-preserving encryption (FF1/FF3), data masking, and hashing.
 
 ```
 composer require cyphera/cyphera
@@ -19,7 +19,7 @@ Requires `ext-openssl` and `ext-gmp`.
 ```php
 use Cyphera\Cyphera;
 
-// Auto-discover: checks CYPHERA_POLICY_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json
+// Auto-discover: checks CYPHERA_CONFIG_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json
 $c = Cyphera::load();
 
 // Or load from a specific file
@@ -27,8 +27,8 @@ $c = Cyphera::fromFile('./config/cyphera.json');
 
 // Or inline config
 $c = Cyphera::fromConfig([
-    'policies' => [
-        'ssn' => ['engine' => 'ff1', 'key_ref' => 'my-key', 'tag' => 'T01'],
+    'configurations' => [
+        'ssn' => ['engine' => 'ff1', 'key_ref' => 'my-key', 'header' => 'T01'],
     ],
     'keys' => [
         'my-key' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C'],
@@ -37,9 +37,9 @@ $c = Cyphera::fromConfig([
 
 // Protect
 $protected = $c->protect('123-45-6789', 'ssn');
-// → "T01i6J-xF-07pX" (tagged, dashes preserved)
+// → "T01i6J-xF-07pX" (DPH-prefixed, dashes preserved)
 
-// Access (tag-based, no policy name needed)
+// Access (header-based, no configuration name needed)
 $accessed = $c->access($protected);
 // → "123-45-6789"
 ```
@@ -53,14 +53,14 @@ $accessed = $c->access($protected);
 | `mask` | No  | Simple pattern masking (last4, first1, full, etc.) |
 | `hash` | No  | SHA-256/384/512, HMAC when key provided |
 
-## Policy File (cyphera.json)
+## Configuration File (cyphera.json)
 
 ```json
 {
-  "policies": {
-    "ssn": { "engine": "ff1", "key_ref": "my-key", "tag": "T01" },
-    "cc": { "engine": "ff1", "key_ref": "my-key", "tag": "T02" },
-    "ssn_mask": { "engine": "mask", "pattern": "last4", "tag_enabled": false }
+  "configurations": {
+    "ssn": { "engine": "ff1", "key_ref": "my-key", "header": "T01" },
+    "cc": { "engine": "ff1", "key_ref": "my-key", "header": "T02" },
+    "ssn_mask": { "engine": "mask", "pattern": "last4", "header_enabled": false }
   },
   "keys": {
     "my-key": { "material": "2B7E151628AED2A6ABF7158809CF4F3C" }

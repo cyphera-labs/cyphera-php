@@ -1,6 +1,6 @@
 {
     "name": "cyphera/cyphera",
-    "description": "Data protection SDK for PHP — format-preserving encryption (FF1/FF3), data masking, and hashing.",
+    "description": "Configuration-driven data protection SDK for PHP — format-preserving encryption (FF1/FF3), data masking, and hashing.",
     "type": "library",
     "license": "Apache-2.0",
     "require": {

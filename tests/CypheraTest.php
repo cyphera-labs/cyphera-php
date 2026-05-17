@@ -12,11 +12,11 @@ class CypheraTest extends TestCase
     private static function createClient(): Cyphera
     {
         return Cyphera::fromConfig([
-            'policies' => [
-                'ssn' => ['engine' => 'ff1', 'key_ref' => 'test-key', 'tag' => 'T01'],
-                'ssn_digits' => ['engine' => 'ff1', 'alphabet' => 'digits', 'tag_enabled' => false, 'key_ref' => 'test-key'],
-                'ssn_mask' => ['engine' => 'mask', 'pattern' => 'last4', 'tag_enabled' => false],
-                'ssn_hash' => ['engine' => 'hash', 'algorithm' => 'sha256', 'key_ref' => 'test-key', 'tag_enabled' => false],
+            'configurations' => [
+                'ssn' => ['engine' => 'ff1', 'key_ref' => 'test-key', 'header' => 'T01'],
+                'ssn_digits' => ['engine' => 'ff1', 'alphabet' => 'digits', 'header_enabled' => false, 'key_ref' => 'test-key'],
+                'ssn_mask' => ['engine' => 'mask', 'pattern' => 'last4', 'header_enabled' => false],
+                'ssn_hash' => ['engine' => 'hash', 'algorithm' => 'sha256', 'key_ref' => 'test-key', 'header_enabled' => false],
             ],
             'keys' => [
                 'test-key' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C'],
@@ -24,7 +24,7 @@ class CypheraTest extends TestCase
         ]);
     }
 
-    public function testProtectAccessWithTag(): void
+    public function testProtectAccessWithHeader(): void
     {
         $c = self::createClient();
         $protected = $c->protect('123456789', 'ssn');
@@ -43,7 +43,7 @@ class CypheraTest extends TestCase
         $this->assertSame('123-45-6789', $accessed);
     }
 
-    public function testUntaggedDigitsRoundtrip(): void
+    public function testHeaderlessDigitsRoundtrip(): void
     {
         $c = self::createClient();
         $protected = $c->protect('123456789', 'ssn_digits');
@@ -81,29 +81,29 @@ class CypheraTest extends TestCase
         $c = self::createClient();
         $masked = $c->protect('123-45-6789', 'ssn_mask');
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/No matching tag/');
+        $this->expectExceptionMessageMatches('/No matching header/');
         $c->access($masked);
     }
 
-    public function testTagCollisionRaises(): void
+    public function testHeaderCollisionRaises(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/Tag collision/');
+        $this->expectExceptionMessageMatches('/Header collision/');
         Cyphera::fromConfig([
-            'policies' => [
-                'a' => ['engine' => 'ff1', 'key_ref' => 'k', 'tag' => 'ABC'],
-                'b' => ['engine' => 'ff1', 'key_ref' => 'k', 'tag' => 'ABC'],
+            'configurations' => [
+                'a' => ['engine' => 'ff1', 'key_ref' => 'k', 'header' => 'ABC'],
+                'b' => ['engine' => 'ff1', 'key_ref' => 'k', 'header' => 'ABC'],
             ],
             'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
         ]);
     }
 
-    public function testTagRequiredRaises(): void
+    public function testHeaderRequiredRaises(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/no tag specified/');
+        $this->expectExceptionMessageMatches('/no header specified/');
         Cyphera::fromConfig([
-            'policies' => ['a' => ['engine' => 'ff1', 'key_ref' => 'k']],
+            'configurations' => ['a' => ['engine' => 'ff1', 'key_ref' => 'k']],
             'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
         ]);
     }
