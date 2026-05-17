@@ -112,11 +112,32 @@ class Cyphera
         };
     }
 
+    /**
+     * Access (reverse) a protected value.
+     *
+     * Two forms:
+     *   - access($value)                       — header-based lookup (DPH). The
+     *                                            header identifies the configuration.
+     *   - access($value, $configurationName)   — explicit. Only valid when the
+     *                                            named configuration has
+     *                                            header_enabled=false. The input
+     *                                            is treated as raw headerless
+     *                                            ciphertext.
+     *
+     * Calling the two-argument form on a configuration whose header_enabled is
+     * true throws InvalidArgumentException — for those, use the single-argument
+     * form so the header identifies which configuration to use.
+     */
     public function access(string $protectedValue, ?string $configurationName = null): string
     {
         if ($configurationName !== null) {
             $configuration = $this->getConfiguration($configurationName);
-            return $this->accessFpe($protectedValue, $configuration, true);
+            if ($configuration['header_enabled'] === true) {
+                throw new \InvalidArgumentException(
+                    "configuration '{$configurationName}' has header_enabled=true; use access(\$value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only."
+                );
+            }
+            return $this->accessFpe($protectedValue, $configuration);
         }
 
         // Header-based lookup — longest headers first
@@ -126,7 +147,8 @@ class Cyphera
         foreach ($headers as $header) {
             if (strlen($protectedValue) > strlen($header) && str_starts_with($protectedValue, $header)) {
                 $configuration = $this->getConfiguration($this->headerIndex[$header]);
-                return $this->accessFpe($protectedValue, $configuration);
+                $stripped = substr($protectedValue, strlen($header));
+                return $this->accessFpe($stripped, $configuration);
             }
         }
 
@@ -161,7 +183,13 @@ class Cyphera
         return $result;
     }
 
-    private function accessFpe(string $protectedValue, array $configuration, bool $explicitConfiguration = false): string
+    /**
+     * Decrypt the raw (already header-stripped) ciphertext. Callers are
+     * responsible for stripping the header before invoking this — the
+     * header-based path strips before calling, and the explicit
+     * (header_enabled=false) path has no header to strip.
+     */
+    private function accessFpe(string $rawCiphertext, array $configuration): string
     {
         if (!in_array($configuration['engine'], ['ff1', 'ff3'], true)) {
             throw new \InvalidArgumentException("Cannot reverse '{$configuration['engine']}' — not reversible");
@@ -170,12 +198,7 @@ class Cyphera
         $key = $this->resolveKey($configuration['key_ref']);
         $alphabet = $configuration['alphabet'];
 
-        $withoutHeader = $protectedValue;
-        if (!$explicitConfiguration && $configuration['header_enabled'] && $configuration['header'] !== null) {
-            $withoutHeader = substr($protectedValue, strlen($configuration['header']));
-        }
-
-        [$encryptable, $positions, $chars] = $this->extractPassthroughs($withoutHeader, $alphabet);
+        [$encryptable, $positions, $chars] = $this->extractPassthroughs($rawCiphertext, $alphabet);
 
         if ($configuration['engine'] === 'ff3') {
             $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);

@@ -114,4 +114,13 @@ class CypheraTest extends TestCase
         $result = $c->protect('123-45-6789', 'ssn');
         $this->assertSame('T01i6J-xF-07pX', $result);
     }
+
+    public function testExplicitAccessOnHeaderedConfigurationRaises(): void
+    {
+        $c = self::createClient();
+        $protected = $c->protect('123-45-6789', 'ssn');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/header_enabled=true/');
+        $c->access($protected, 'ssn');
+    }
 }
