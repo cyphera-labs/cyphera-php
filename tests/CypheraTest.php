@@ -30,7 +30,7 @@ class CypheraTest extends TestCase
         $protected = $c->protect('123456789', 'ssn');
         $this->assertStringStartsWith('T01', $protected);
         $this->assertGreaterThan(strlen('123456789'), strlen($protected));
-        $accessed = $c->access($protected);
+        $accessed = $c->accessByHeader($protected);
         $this->assertSame('123456789', $accessed);
     }
 
@@ -39,7 +39,7 @@ class CypheraTest extends TestCase
         $c = self::createClient();
         $protected = $c->protect('123-45-6789', 'ssn');
         $this->assertStringContainsString('-', $protected);
-        $accessed = $c->access($protected);
+        $accessed = $c->accessByHeader($protected);
         $this->assertSame('123-45-6789', $accessed);
     }
 
@@ -82,7 +82,7 @@ class CypheraTest extends TestCase
         $masked = $c->protect('123-45-6789', 'ssn_mask');
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/No matching header/');
-        $c->access($masked);
+        $c->accessByHeader($masked);
     }
 
     public function testHeaderCollisionRaises(): void

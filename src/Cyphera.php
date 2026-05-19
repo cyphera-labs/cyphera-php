@@ -61,6 +61,7 @@ class Cyphera
                 'key_ref' => $cfg['key_ref'] ?? null,
                 'header' => $header,
                 'header_enabled' => $headerEnabled,
+                'header_length' => (int)($cfg['header_length'] ?? 3),
                 'pattern' => $cfg['pattern'] ?? null,
                 'algorithm' => $cfg['algorithm'] ?? 'sha256',
             ];
@@ -128,18 +129,25 @@ class Cyphera
      * true throws InvalidArgumentException — for those, use the single-argument
      * form so the header identifies which configuration to use.
      */
-    public function access(string $protectedValue, ?string $configurationName = null): string
+    public function access(string $protectedValue, string $configurationName): string
     {
-        if ($configurationName !== null) {
-            $configuration = $this->getConfiguration($configurationName);
-            if ($configuration['header_enabled'] === true) {
-                throw new \InvalidArgumentException(
-                    "configuration '{$configurationName}' has header_enabled=true; use access(\$value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only."
-                );
-            }
-            return $this->accessFpe($protectedValue, $configuration);
+        $configuration = $this->getConfiguration($configurationName);
+        if ($configuration['header_enabled'] === true) {
+            throw new \InvalidArgumentException(
+                "configuration '{$configurationName}' has header_enabled=true; use accessByHeader(\$value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only."
+            );
         }
+        return $this->accessFpe($protectedValue, $configuration);
+    }
 
+    /**
+     * Access by header. Reads the leading Data Protection Header (DPH) from
+     * the protected value, looks up the matching configuration, strips the
+     * header, and decrypts. Use this for header_enabled=true configurations;
+     * for header_enabled=false use access($value, $configurationName).
+     */
+    public function accessByHeader(string $protectedValue): string
+    {
         // Header-based lookup — longest headers first
         $headers = array_keys($this->headerIndex);
         usort($headers, fn($a, $b) => strlen($b) - strlen($a));
