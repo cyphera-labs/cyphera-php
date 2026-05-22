@@ -16,6 +16,7 @@ class FF3
     private string $tweak;
     private string $alphabet;
     private int $radix;
+    private int $maxLen;
     /** @var array<string, int> */
     private array $charMap;
 
@@ -40,6 +41,28 @@ class FF3
         $this->charMap = [];
         foreach (mb_str_split($alphabet) as $i => $c) {
             $this->charMap[$c] = $i;
+        }
+        // NIST FF3 maximum length: 2 * floor(log_radix(2^96)), exact arithmetic.
+        $limit = gmp_pow(2, 96);
+        $k = 0;
+        while (gmp_cmp(gmp_pow($this->radix, $k + 1), $limit) <= 0) {
+            $k++;
+        }
+        $this->maxLen = 2 * $k;
+    }
+
+    // NIST SP 800-38G: length >= 2, radix^length >= 1,000,000, length <= maxLen.
+    private function checkLength(int $n): void
+    {
+        if ($n < 2 || gmp_cmp(gmp_pow($this->radix, $n), 1000000) < 0) {
+            throw new \InvalidArgumentException(
+                'input too short (NIST minimum: length >= 2 and radix^length >= 1,000,000)'
+            );
+        }
+        if ($n > $this->maxLen) {
+            throw new \InvalidArgumentException(
+                "input too long (FF3 maximum for this radix is {$this->maxLen})"
+            );
         }
     }
 
@@ -154,6 +177,7 @@ class FF3
     private function ff3Encrypt(array $pt): array
     {
         $n = count($pt);
+        $this->checkLength($n);
         $u = intdiv($n + 1, 2);
         $v = $n - $u;
         $A = array_slice($pt, 0, $u);
@@ -187,6 +211,7 @@ class FF3
     private function ff3Decrypt(array $ct): array
     {
         $n = count($ct);
+        $this->checkLength($n);
         $u = intdiv($n + 1, 2);
         $v = $n - $u;
         $A = array_slice($ct, 0, $u);

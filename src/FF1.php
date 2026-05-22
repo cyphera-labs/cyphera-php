@@ -128,9 +128,24 @@ class FF1
         return $r;
     }
 
+    // NIST SP 800-38G: length >= 2 and radix^length >= 1,000,000.
+    private function checkLength(int $n): void
+    {
+        if ($n < 2 || gmp_cmp(gmp_pow($this->radix, $n), 1000000) < 0) {
+            throw new \InvalidArgumentException(
+                'input too short (NIST minimum: length >= 2 and radix^length >= 1,000,000)'
+            );
+        }
+    }
+
     private function computeB(int $v): int
     {
-        return (int)ceil(ceil($v * log($this->radix, 2)) / 8);
+        // NIST SP 800-38G: b = ceil(ceil(v*log2(radix))/8) with exact integer
+        // arithmetic. ceil(v*log2(radix)) is the bit length of radix^v - 1.
+        // Floating-point log2 is forbidden — rounding errors corrupt ciphertext.
+        $pow = gmp_sub(gmp_pow($this->radix, $v), 1);
+        $bits = (gmp_cmp($pow, 0) === 0) ? 1 : strlen(gmp_strval($pow, 2));
+        return intdiv($bits + 7, 8);
     }
 
     private function buildP(int $u, int $n, int $t): string
@@ -176,6 +191,7 @@ class FF1
     private function ff1Encrypt(array $pt, string $T): array
     {
         $n = count($pt);
+        $this->checkLength($n);
         $u = intdiv($n, 2);
         $v = $n - $u;
         $A = array_slice($pt, 0, $u);
@@ -208,6 +224,7 @@ class FF1
     private function ff1Decrypt(array $ct, string $T): array
     {
         $n = count($ct);
+        $this->checkLength($n);
         $u = intdiv($n, 2);
         $v = $n - $u;
         $A = array_slice($ct, 0, $u);
