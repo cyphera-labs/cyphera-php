@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Cyphera;
 
 /**
- * FF3-1 Format-Preserving Encryption (NIST SP 800-38G Rev 1).
+ * FF3 (NIST SP 800-38G) Format-Preserving Encryption.
+ *
+ * This is the original FF3, which is cryptographically weak and deprecated.
+ * Use {@see FF31} (FF3-1, NIST SP 800-38G Rev 1) instead.
  */
 class FF3
 {

@@ -105,8 +105,7 @@ class Cyphera
         $configuration = $this->getConfiguration($configurationName);
 
         return match ($configuration['engine']) {
-            'ff1' => $this->protectFpe($value, $configuration, false),
-            'ff3' => $this->protectFpe($value, $configuration, true),
+            'ff1', 'ff3', 'ff31' => $this->protectFpe($value, $configuration),
             'mask' => $this->protectMask($value, $configuration),
             'hash' => $this->protectHash($value, $configuration),
             default => throw new \InvalidArgumentException("Unknown engine: {$configuration['engine']}"),
@@ -165,7 +164,18 @@ class Cyphera
 
     // ── FPE ──
 
-    private function protectFpe(string $value, array $configuration, bool $isFF3): string
+    private static bool $ff3Warned = false;
+
+    /** Emit the FF3 deprecation warning to stderr, once per process. */
+    private function warnFf3Deprecated(): void
+    {
+        if (!self::$ff3Warned) {
+            self::$ff3Warned = true;
+            fwrite(STDERR, "WARNING: engine 'ff3' is deprecated and cryptographically weak — migrate to 'ff31' (FF3-1).\n");
+        }
+    }
+
+    private function protectFpe(string $value, array $configuration): string
     {
         $key = $this->resolveKey($configuration['key_ref']);
         $alphabet = $configuration['alphabet'];
@@ -176,8 +186,11 @@ class Cyphera
             throw new \InvalidArgumentException('No encryptable characters in input');
         }
 
-        if ($isFF3) {
+        if ($configuration['engine'] === 'ff3') {
+            $this->warnFf3Deprecated();
             $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);
+        } elseif ($configuration['engine'] === 'ff31') {
+            $cipher = new FF31($key, str_repeat("\x00", 7), $alphabet);
         } else {
             $cipher = new FF1($key, '', $alphabet);
         }
@@ -199,7 +212,7 @@ class Cyphera
      */
     private function accessFpe(string $rawCiphertext, array $configuration): string
     {
-        if (!in_array($configuration['engine'], ['ff1', 'ff3'], true)) {
+        if (!in_array($configuration['engine'], ['ff1', 'ff3', 'ff31'], true)) {
             throw new \InvalidArgumentException("Cannot reverse '{$configuration['engine']}' — not reversible");
         }
 
@@ -209,7 +222,10 @@ class Cyphera
         [$encryptable, $positions, $chars] = $this->extractPassthroughs($rawCiphertext, $alphabet);
 
         if ($configuration['engine'] === 'ff3') {
+            $this->warnFf3Deprecated();
             $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);
+        } elseif ($configuration['engine'] === 'ff31') {
+            $cipher = new FF31($key, str_repeat("\x00", 7), $alphabet);
         } else {
             $cipher = new FF1($key, '', $alphabet);
         }
