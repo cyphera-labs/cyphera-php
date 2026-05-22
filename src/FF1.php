@@ -170,11 +170,14 @@ class FF1
 
     private function gmpToBytes(\GMP $val, int $len): string
     {
-        $hex = gmp_strval($val, 16);
-        if (strlen($hex) % 2 !== 0) {
-            $hex = '0' . $hex;
+        // Use gmp_export rather than gmp_strval(…,16)+hex2bin: the latter
+        // round-trips through ASCII text, and when the result happens to be the
+        // single byte 0x30 ('0'), PHP's Elvis operator treated it as falsy and
+        // replaced it with NUL — silently corrupting the FF1 Q block.
+        if (gmp_cmp($val, 0) === 0) {
+            return str_repeat("\x00", $len > 0 ? $len : 1);
         }
-        $bytes = hex2bin($hex) ?: "\x00";
+        $bytes = gmp_export($val, 1, GMP_MSW_FIRST | GMP_BIG_ENDIAN);
         if (strlen($bytes) < $len) {
             $bytes = str_repeat("\x00", $len - strlen($bytes)) . $bytes;
         }
