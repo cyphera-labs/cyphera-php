@@ -30,7 +30,7 @@ class CypheraTest extends TestCase
         $protected = $c->protect('123456789', 'ssn');
         $this->assertStringStartsWith('T01', $protected);
         $this->assertGreaterThan(strlen('123456789'), strlen($protected));
-        $accessed = $c->accessByHeader($protected);
+        $accessed = $c->access($protected);
         $this->assertSame('123456789', $accessed);
     }
 
@@ -39,7 +39,7 @@ class CypheraTest extends TestCase
         $c = self::createClient();
         $protected = $c->protect('123-45-6789', 'ssn');
         $this->assertStringContainsString('-', $protected);
-        $accessed = $c->accessByHeader($protected);
+        $accessed = $c->access($protected);
         $this->assertSame('123-45-6789', $accessed);
     }
 
@@ -48,7 +48,8 @@ class CypheraTest extends TestCase
         $c = self::createClient();
         $protected = $c->protect('123456789', 'ssn_digits');
         $this->assertSame(9, strlen($protected));
-        $accessed = $c->access($protected, 'ssn_digits');
+        // ssn_digits has header_enabled=false, so the low-level decrypt form applies.
+        $accessed = $c->decrypt($protected, 'ssn_digits');
         $this->assertSame('123456789', $accessed);
     }
 
@@ -80,9 +81,11 @@ class CypheraTest extends TestCase
     {
         $c = self::createClient();
         $masked = $c->protect('123-45-6789', 'ssn_mask');
+        // ssn_mask has header_enabled=false, so access() can't find a header
+        // and reports the no-matching-header error.
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/No matching header/');
-        $c->accessByHeader($masked);
+        $c->access($masked);
     }
 
     public function testHeaderCollisionRaises(): void
@@ -115,12 +118,14 @@ class CypheraTest extends TestCase
         $this->assertSame('T01i6J-xF-07pX', $result);
     }
 
-    public function testExplicitAccessOnHeaderedConfigurationRaises(): void
+    public function testDecryptOnHeaderedConfigurationRaises(): void
     {
         $c = self::createClient();
         $protected = $c->protect('123-45-6789', 'ssn');
+        // Low-level decrypt(value, name) rejects header_enabled=true configurations.
+        // Callers should use access(value) instead.
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/header_enabled=true/');
-        $c->access($protected, 'ssn');
+        $c->decrypt($protected, 'ssn');
     }
 }
