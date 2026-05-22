@@ -48,8 +48,9 @@ class CypheraTest extends TestCase
         $c = self::createClient();
         $protected = $c->protect('123456789', 'ssn_digits');
         $this->assertSame(9, strlen($protected));
-        // ssn_digits has header_enabled=false, so the low-level decrypt form applies.
-        $accessed = $c->decrypt($protected, 'ssn_digits');
+        // ssn_digits has header_enabled=false, so the 2-arg access form
+        // (escape hatch) is the way to round-trip without a header to key off.
+        $accessed = $c->access($protected, 'ssn_digits');
         $this->assertSame('123456789', $accessed);
     }
 
@@ -118,14 +119,14 @@ class CypheraTest extends TestCase
         $this->assertSame('T01i6J-xF-07pX', $result);
     }
 
-    public function testDecryptOnHeaderedConfigurationRaises(): void
+    public function testTwoArgAccessOnIrreversibleConfigurationRaises(): void
     {
         $c = self::createClient();
-        $protected = $c->protect('123-45-6789', 'ssn');
-        // Low-level decrypt(value, name) rejects header_enabled=true configurations.
-        // Callers should use access(value) instead.
+        // The 2-arg escape hatch is permissive about header_enabled but
+        // still must refuse mask/hash configurations — those are one-way.
+        $masked = $c->protect('123-45-6789', 'ssn_mask');
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/header_enabled=true/');
-        $c->decrypt($protected, 'ssn');
+        $this->expectExceptionMessageMatches('/not reversible/');
+        $c->access($masked, 'ssn_mask');
     }
 }

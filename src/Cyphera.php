@@ -113,13 +113,27 @@ class Cyphera
     }
 
     /**
-     * Reverse a protected value. The SDK uses the loaded configurations to
-     * figure out which one applies — it checks the leading bytes of
+     * Reverse a protected value.
+     *
+     * Primary form — access($value): the SDK uses the loaded configurations
+     * to figure out which one applies. It checks the leading bytes of
      * $protectedValue against the registered headers (longest first to avoid
      * prefix collisions), strips the matched header, and decrypts.
+     *
+     * Escape hatch — access($value, $configurationName): for unique
+     * situations where the protected value has no header (mainframe
+     * formats, fixed-width legacy systems, etc.). The caller names the
+     * configuration explicitly and the value is decrypted as raw headerless
+     * ciphertext. Not the primary API; intentionally not promoted in
+     * examples.
      */
-    public function access(string $protectedValue): string
+    public function access(string $protectedValue, ?string $configurationName = null): string
     {
+        if ($configurationName !== null) {
+            $configuration = $this->getConfiguration($configurationName);
+            return $this->accessFpe($protectedValue, $configuration);
+        }
+
         // Walk headers longest-first so a shorter prefix doesn't shadow a longer one.
         $headers = array_keys($this->headerIndex);
         usort($headers, fn($a, $b) => strlen($b) - strlen($a));
@@ -133,23 +147,6 @@ class Cyphera
         }
 
         throw new \InvalidArgumentException('No matching header found');
-    }
-
-    /**
-     * Decrypt a value using the named configuration. The configuration must
-     * have header_enabled = false — this lower-level form treats the input as
-     * raw headerless ciphertext. For headered configurations, use the
-     * high-level access($value) which strips the header itself.
-     */
-    public function decrypt(string $ciphertext, string $configurationName): string
-    {
-        $configuration = $this->getConfiguration($configurationName);
-        if ($configuration['header_enabled'] === true) {
-            throw new \InvalidArgumentException(
-                "configuration '{$configurationName}' has header_enabled=true; use access(\$value) — the header identifies the configuration. The two-arg decrypt(\$value, \$name) form is for header_enabled=false configurations only."
-            );
-        }
-        return $this->accessFpe($ciphertext, $configuration);
     }
 
     // ── FPE ──
