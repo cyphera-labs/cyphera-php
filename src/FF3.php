@@ -24,10 +24,11 @@ class FF3
     {
         $keyLen = strlen($key);
         if ($keyLen !== 16 && $keyLen !== 24 && $keyLen !== 32) {
-            throw new \InvalidArgumentException("Key must be 16, 24, or 32 bytes, got {$keyLen}");
+            throw new \InvalidArgumentException("invalid key length: {$keyLen} (expected 16, 24, or 32)");
         }
-        if (strlen($tweak) !== 8) {
-            throw new \InvalidArgumentException("Tweak must be exactly 8 bytes, got " . strlen($tweak));
+        $tweakLen = strlen($tweak);
+        if ($tweakLen !== 8) {
+            throw new \InvalidArgumentException("invalid tweak length: {$tweakLen} (expected 8)");
         }
         if (mb_strlen($alphabet) < 2) {
             throw new \InvalidArgumentException('Alphabet must have >= 2 characters');
@@ -84,9 +85,9 @@ class FF3
     private function toDigits(string $s): array
     {
         $digits = [];
-        foreach (mb_str_split($s) as $c) {
+        foreach (mb_str_split($s) as $i => $c) {
             if (!isset($this->charMap[$c])) {
-                throw new \InvalidArgumentException("Character '{$c}' not in alphabet");
+                throw new \InvalidArgumentException("invalid char '{$c}' at position {$i}");
             }
             $digits[] = $this->charMap[$c];
         }

@@ -35,7 +35,7 @@ class Cyphera
             } elseif (isset($val['source'])) {
                 $this->keys[$name] = self::resolveKeySource($name, $val);
             } else {
-                throw new \InvalidArgumentException("Key '{$name}' must have either 'material' or 'source'");
+                throw new \InvalidArgumentException("key error: key '{$name}' must have either 'material' or 'source'");
             }
         }
 
@@ -45,12 +45,12 @@ class Cyphera
             $header = $cfg['header'] ?? null;
 
             if ($headerEnabled && empty($header)) {
-                throw new \InvalidArgumentException("Configuration '{$name}' has header_enabled=true but no header specified");
+                throw new \InvalidArgumentException('configuration error: header must be specified');
             }
 
             if ($headerEnabled && $header !== null) {
                 if (isset($this->headerIndex[$header])) {
-                    throw new \InvalidArgumentException("Header collision: '{$header}' used by both '{$this->headerIndex[$header]}' and '{$name}'");
+                    throw new \InvalidArgumentException('configuration error: header collision');
                 }
                 $this->headerIndex[$header] = $name;
             }
@@ -108,7 +108,7 @@ class Cyphera
             'ff1', 'ff3', 'ff31' => $this->protectFpe($value, $configuration),
             'mask' => $this->protectMask($value, $configuration),
             'hash' => $this->protectHash($value, $configuration),
-            default => throw new \InvalidArgumentException("Unknown engine: {$configuration['engine']}"),
+            default => throw new \InvalidArgumentException("unknown engine: {$configuration['engine']}"),
         };
     }
 
@@ -131,7 +131,7 @@ class Cyphera
     {
         if ($configurationName !== null) {
             $configuration = $this->getConfiguration($configurationName);
-            return $this->accessFpe($protectedValue, $configuration);
+            return $this->accessWithConfiguration($protectedValue, $configuration, $configurationName);
         }
 
         // Walk headers longest-first so a shorter prefix doesn't shadow a longer one.
@@ -140,13 +140,25 @@ class Cyphera
 
         foreach ($headers as $header) {
             if (strlen($protectedValue) > strlen($header) && str_starts_with($protectedValue, $header)) {
-                $configuration = $this->getConfiguration($this->headerIndex[$header]);
+                $name = $this->headerIndex[$header];
+                $configuration = $this->getConfiguration($name);
                 $stripped = substr($protectedValue, strlen($header));
-                return $this->accessFpe($stripped, $configuration);
+                return $this->accessWithConfiguration($stripped, $configuration, $name);
             }
         }
 
-        throw new \InvalidArgumentException('No matching header found');
+        throw new \InvalidArgumentException('no matching header found');
+    }
+
+    private function accessWithConfiguration(string $protectedValue, array $configuration, string $configurationName): string
+    {
+        $engine = $configuration['engine'];
+        if ($engine === 'mask' || $engine === 'hash') {
+            throw new \InvalidArgumentException(
+                "cannot reverse '{$configurationName}' — {$engine} is irreversible"
+            );
+        }
+        return $this->accessFpe($protectedValue, $configuration);
     }
 
     // ── FPE ──
@@ -170,7 +182,7 @@ class Cyphera
         [$encryptable, $positions, $chars] = $this->extractPassthroughs($value, $alphabet);
 
         if ($encryptable === '') {
-            throw new \InvalidArgumentException('No encryptable characters in input');
+            throw new \InvalidArgumentException('no encryptable characters in input');
         }
 
         if ($configuration['engine'] === 'ff3') {
@@ -199,8 +211,10 @@ class Cyphera
      */
     private function accessFpe(string $rawCiphertext, array $configuration): string
     {
+        // accessWithConfiguration filters mask/hash; anything else here that
+        // isn't an FPE engine is an internal misuse.
         if (!in_array($configuration['engine'], ['ff1', 'ff3', 'ff31'], true)) {
-            throw new \InvalidArgumentException("Cannot reverse '{$configuration['engine']}' — not reversible");
+            throw new \InvalidArgumentException("unknown engine: {$configuration['engine']}");
         }
 
         $key = $this->resolveKey($configuration['key_ref']);
@@ -227,7 +241,7 @@ class Cyphera
     {
         $pattern = $configuration['pattern'];
         if (empty($pattern)) {
-            throw new \InvalidArgumentException("Mask configuration requires 'pattern'");
+            throw new \InvalidArgumentException('mask pattern required');
         }
 
         $len = mb_strlen($value);
@@ -266,7 +280,7 @@ class Cyphera
     private function getConfiguration(string $name): array
     {
         if (!isset($this->configurations[$name])) {
-            throw new \InvalidArgumentException("Unknown configuration: {$name}");
+            throw new \InvalidArgumentException("configuration not found: {$name}");
         }
         return $this->configurations[$name];
     }
@@ -274,10 +288,10 @@ class Cyphera
     private function resolveKey(?string $keyRef): string
     {
         if (empty($keyRef)) {
-            throw new \InvalidArgumentException('No key_ref in configuration');
+            throw new \InvalidArgumentException('key error: no key_ref in configuration');
         }
         if (!isset($this->keys[$keyRef])) {
-            throw new \InvalidArgumentException("Unknown key: {$keyRef}");
+            throw new \InvalidArgumentException("key error: unknown key '{$keyRef}'");
         }
         return $this->keys[$keyRef];
     }

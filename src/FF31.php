@@ -18,10 +18,9 @@ class FF31
 
     public function __construct(string $key, string $tweak, string $alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
     {
-        if (strlen($tweak) !== 7) {
-            throw new \InvalidArgumentException(
-                'FF3-1 tweak must be exactly 7 bytes (56 bits), got ' . strlen($tweak)
-            );
+        $tweakLen = strlen($tweak);
+        if ($tweakLen !== 7) {
+            throw new \InvalidArgumentException("invalid tweak length: {$tweakLen} (expected 7)");
         }
         $this->inner = new FF3($key, self::expandTweak($tweak), $alphabet);
     }

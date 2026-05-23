@@ -85,14 +85,14 @@ class CypheraTest extends TestCase
         // ssn_mask has header_enabled=false, so access() can't find a header
         // and reports the no-matching-header error.
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/No matching header/');
+        $this->expectExceptionMessage('no matching header found');
         $c->access($masked);
     }
 
     public function testHeaderCollisionRaises(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/Header collision/');
+        $this->expectExceptionMessage('configuration error: header collision');
         Cyphera::fromConfig([
             'configurations' => [
                 'a' => ['engine' => 'ff1', 'key_ref' => 'k', 'header' => 'ABC'],
@@ -105,7 +105,7 @@ class CypheraTest extends TestCase
     public function testHeaderRequiredRaises(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/no header specified/');
+        $this->expectExceptionMessage('configuration error: header must be specified');
         Cyphera::fromConfig([
             'configurations' => ['a' => ['engine' => 'ff1', 'key_ref' => 'k']],
             'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
@@ -126,7 +126,7 @@ class CypheraTest extends TestCase
         // still must refuse mask/hash configurations — those are one-way.
         $masked = $c->protect('123-45-6789', 'ssn_mask');
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/not reversible/');
+        $this->expectExceptionMessage("cannot reverse 'ssn_mask' — mask is irreversible");
         $c->access($masked, 'ssn_mask');
     }
 }
