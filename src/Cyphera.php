@@ -55,13 +55,21 @@ class Cyphera
                 $this->headerIndex[$header] = $name;
             }
 
+            $tweakHex = $cfg['tweak'] ?? null;
+            $tweak = (is_string($tweakHex) && $tweakHex !== '') ? hex2bin($tweakHex) : null;
+            if ($tweakHex !== null && $tweak === false) {
+                throw new \InvalidArgumentException("configuration error: invalid hex tweak in '{$name}'");
+            }
+
             $this->configurations[$name] = [
+                'name' => $name,
                 'engine' => $cfg['engine'] ?? 'ff1',
                 'alphabet' => self::resolveAlphabet($cfg['alphabet'] ?? null),
                 'key_ref' => $cfg['key_ref'] ?? null,
                 'header' => $header,
                 'header_enabled' => $headerEnabled,
                 'header_length' => (int)($cfg['header_length'] ?? 3),
+                'tweak' => $tweak,
                 'pattern' => $cfg['pattern'] ?? null,
                 'algorithm' => $cfg['algorithm'] ?? 'sha256',
             ];
@@ -163,6 +171,22 @@ class Cyphera
 
     // ── FPE ──
 
+    /**
+     * Require an exact-length tweak for FF3 / FF3-1. Missing or wrong-length
+     * tweaks are a hard error — no silent zero-fill. FF1 tweak is optional
+     * per NIST SP 800-38G and is handled separately.
+     */
+    private static function requireTweak(array $configuration, int $expectedLen, string $label): string
+    {
+        $tweak = $configuration['tweak'] ?? null;
+        if (!is_string($tweak) || strlen($tweak) !== $expectedLen) {
+            throw new \InvalidArgumentException(
+                "configuration '{$configuration['name']}' is missing required 'tweak' ({$label} needs {$expectedLen} bytes)"
+            );
+        }
+        return $tweak;
+    }
+
     private static bool $ff3Warned = false;
 
     /** Emit the FF3 deprecation warning to stderr, once per process. */
@@ -187,11 +211,11 @@ class Cyphera
 
         if ($configuration['engine'] === 'ff3') {
             $this->warnFf3Deprecated();
-            $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);
+            $cipher = new FF3($key, self::requireTweak($configuration, 8, 'FF3'), $alphabet);
         } elseif ($configuration['engine'] === 'ff31') {
-            $cipher = new FF31($key, str_repeat("\x00", 7), $alphabet);
+            $cipher = new FF31($key, self::requireTweak($configuration, 7, 'FF3-1'), $alphabet);
         } else {
-            $cipher = new FF1($key, '', $alphabet);
+            $cipher = new FF1($key, $configuration['tweak'] ?? '', $alphabet);
         }
         $encrypted = $cipher->encrypt($encryptable);
 
@@ -224,11 +248,11 @@ class Cyphera
 
         if ($configuration['engine'] === 'ff3') {
             $this->warnFf3Deprecated();
-            $cipher = new FF3($key, str_repeat("\x00", 8), $alphabet);
+            $cipher = new FF3($key, self::requireTweak($configuration, 8, 'FF3'), $alphabet);
         } elseif ($configuration['engine'] === 'ff31') {
-            $cipher = new FF31($key, str_repeat("\x00", 7), $alphabet);
+            $cipher = new FF31($key, self::requireTweak($configuration, 7, 'FF3-1'), $alphabet);
         } else {
-            $cipher = new FF1($key, '', $alphabet);
+            $cipher = new FF1($key, $configuration['tweak'] ?? '', $alphabet);
         }
         $decrypted = $cipher->decrypt($encryptable);
 

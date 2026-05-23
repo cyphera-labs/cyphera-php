@@ -129,4 +129,53 @@ class CypheraTest extends TestCase
         $this->expectExceptionMessage("cannot reverse 'ssn_mask' — mask is irreversible");
         $c->access($masked, 'ssn_mask');
     }
+
+    // ── Strict FF3 / FF3-1 tweak (no silent zero-fill) ──
+
+    public function testFf3MissingTweakRaises(): void
+    {
+        $c = Cyphera::fromConfig([
+            'configurations' => [
+                'ff3_no_tweak' => ['engine' => 'ff3', 'alphabet' => 'digits', 'key_ref' => 'k', 'header' => 'T03'],
+            ],
+            'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
+        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("configuration 'ff3_no_tweak' is missing required 'tweak' (FF3 needs 8 bytes)");
+        $c->protect('123456789', 'ff3_no_tweak');
+    }
+
+    public function testFf31MissingTweakRaises(): void
+    {
+        $c = Cyphera::fromConfig([
+            'configurations' => [
+                'ff31_no_tweak' => ['engine' => 'ff31', 'alphabet' => 'digits', 'key_ref' => 'k', 'header' => 'T04'],
+            ],
+            'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
+        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("configuration 'ff31_no_tweak' is missing required 'tweak' (FF3-1 needs 7 bytes)");
+        $c->protect('123456789', 'ff31_no_tweak');
+    }
+
+    public function testFf3WithExplicitTweakRoundtrips(): void
+    {
+        $c = Cyphera::fromConfig([
+            'configurations' => [
+                'ff3_ok' => ['engine' => 'ff3', 'alphabet' => 'digits', 'key_ref' => 'k', 'header' => 'T05', 'tweak' => 'D8E7920AFA330A73'],
+            ],
+            'keys' => ['k' => ['material' => '2B7E151628AED2A6ABF7158809CF4F3C']],
+        ]);
+        $protected = $c->protect('123456789', 'ff3_ok');
+        $this->assertNotSame('123456789', $protected);
+        $this->assertSame('123456789', $c->access($protected));
+    }
+
+    public function testFf1MissingTweakStillWorks(): void
+    {
+        // FF1 tweak stays optional per NIST SP 800-38G.
+        $c = self::createClient();
+        $protected = $c->protect('123456789', 'ssn'); // ssn is ff1 with no tweak
+        $this->assertSame('123456789', $c->access($protected));
+    }
 }
