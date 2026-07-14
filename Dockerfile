@@ -1,7 +1,7 @@
 FROM cgr.dev/chainguard/wolfi-base@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795
 RUN apk add --no-cache \
-      php-8.1 php-8.1-gmp php-8.1-phar php-8.1-openssl php-8.1-mbstring \
-      php-8.1-dom php-8.1-xml php-8.1-xmlwriter php-8.1-ctype composer \
+      php-8.2 php-8.2-gmp php-8.2-phar php-8.2-openssl php-8.2-mbstring \
+      php-8.2-dom php-8.2-xml php-8.2-xmlwriter php-8.2-ctype composer \
   && rm -rf /var/cache/apk/*
 
 USER nonroot

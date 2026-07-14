@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cyphera\Tests;
 
 use Cyphera\FF31;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /** FF3-1 conformance — all 18 NIST ACVP AES-FF3-1 test vectors (56-bit tweaks). */
@@ -39,7 +40,7 @@ class FF31AcvpTest extends TestCase
         ];
     }
 
-    /** @dataProvider acvpVectors */
+    #[DataProvider('acvpVectors')]
     public function testAcvpVector(string $key, string $tweak, string $alphabet, string $pt, string $ct): void
     {
         $cipher = new FF31(hex2bin($key), hex2bin($tweak), $alphabet);
