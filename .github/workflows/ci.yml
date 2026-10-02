@@ -21,3 +21,27 @@ jobs:
           extensions: gmp, openssl
       - run: composer install -q
       - run: vendor/bin/phpunit --colors=always
+
+  sbom:
+    name: SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@b2f833f7d1c070621af195c088d275c4cd60ef8f # 2.9.0
+        with:
+          php-version: "8.3"
+          tools: composer:v2
+      - run: composer config --no-plugins allow-plugins.cyclonedx/cyclonedx-php-composer true
+      - run: composer require --dev cyclonedx/cyclonedx-php-composer:6.2.0 --no-interaction
+      - run: composer CycloneDX:make-sbom --output-format=JSON --output-file=sbom.cyclonedx.json --spec-version=1.6
+      - uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          syft-version: v1.54.0
+          upload-artifact: false
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: sbom.*.json
